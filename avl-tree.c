@@ -63,6 +63,29 @@ void avl_print(avl_tree *t)
   }
 }
 
+avl_tree *avl_rotate_left(avl_tree **epp)
+{
+  avl_tree *e = *epp;
+  avl_tree *old_right = e->r_tree;
+  avl_tree *new_right = old_right->l_tree;
+
+  *epp = old_right;
+  old_right->l_tree = e;
+  e->r_tree = new_right;
+  return old_right;
+}
+
+avl_tree *avl_rotate_right(avl_tree **epp)
+{
+  avl_tree *e = *epp;
+  avl_tree *old_left = e->l_tree;
+  avl_tree *new_left = old_left->r_tree;
+
+  *epp = old_left;
+  old_left->r_tree = e;
+  e->l_tree = new_left;
+  return old_left;
+}
 
 avl_tree *avl_insert(avl_tree **tpp, int v)
 {
@@ -89,6 +112,9 @@ int main(int argc, char *argv[])
   avl_insert(&tree, 3);
   avl_insert(&tree, 2);
   avl_insert(&tree, 1);
+  avl_rotate_right(&tree->l_tree);
+  avl_rotate_left(&tree->l_tree);
+ // avl_rotate_left(e);
   avl_print(tree);
   return 0;
 }
