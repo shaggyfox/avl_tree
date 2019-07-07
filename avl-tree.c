@@ -4,13 +4,11 @@
 typedef struct avl_tree_s avl_tree;
 struct avl_tree_s {
   avl_tree *l_tree;
-  int l_depth;
   avl_tree *r_tree;
-  int r_depth;
   int v;
 };
 
-int avl_depth(avl_tree *t)
+static int avl_depth(avl_tree *t)
 {
   if (t) {
     int a = avl_depth(t->l_tree);
@@ -20,55 +18,12 @@ int avl_depth(avl_tree *t)
   return 0;
 }
 
-int avl_balance(avl_tree *t)
+static int avl_balance(avl_tree *t)
 {
   return avl_depth(t->r_tree) - avl_depth(t->l_tree);
 }
 
-void print_space(int nr)
-{
-  for(int i = 0; i < nr; ++i) {
-    putchar(' ');
-  }
-}
-
-void avl_print_line(avl_tree *t, int deep, int pos, int spacing)
-{
-  if (pos == deep) {
-    if (t) {
-      printf("%d", t->v);
-    } else {
-      printf(" ");
-    }
-    print_space(spacing);
-  } else {
-    avl_print_line(t ? t->l_tree : NULL, deep, pos + 1, spacing);
-    avl_print_line(t ? t->r_tree : NULL, deep, pos + 1, spacing);
-  }
-}
-
-int calc_spacing(int depth, int pos)
-{
-  int ret = 1;
-  for( int i = pos; i <= depth; ++i)
-  {
-    ret *= 2;
-  }
-  return ret - 1;
-}
-
-void avl_print(avl_tree *t)
-{
-  int tree_depth = avl_depth(t);
-  for (int i = 1; i <= tree_depth; ++i) {
-    int spacing = calc_spacing(tree_depth, i);
-    print_space(spacing / 2);
-    avl_print_line(t, i, 1, spacing);
-    printf("\n");
-  }
-}
-
-avl_tree *avl_rotate_left(avl_tree **epp)
+static avl_tree *avl_rotate_left(avl_tree **epp)
 {
   avl_tree *e = *epp;
   avl_tree *old_right = e->r_tree;
@@ -80,7 +35,7 @@ avl_tree *avl_rotate_left(avl_tree **epp)
   return old_right;
 }
 
-avl_tree *avl_rotate_right(avl_tree **epp)
+static avl_tree *avl_rotate_right(avl_tree **epp)
 {
   avl_tree *e = *epp;
   avl_tree *old_left = e->l_tree;
@@ -93,7 +48,7 @@ avl_tree *avl_rotate_right(avl_tree **epp)
 }
 
 enum {NONE, LEFT, RIGHT};
-avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
+static avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
 {
   avl_tree *t = *tpp;
   int balance = avl_balance(t);
@@ -126,37 +81,31 @@ avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
   return t;
 }
 
-avl_tree *avl_insert(avl_tree **tpp, int v, int *p2)
+avl_tree *avl_insert_intern(avl_tree **tpp, int v, int *p2)
 {
   avl_tree *t = *tpp;
   avl_tree *ret = NULL;
   if (!t) {
     *tpp = calloc(1, sizeof(avl_tree));
     (*tpp)->v = v;
-    if (p2) {
-      *p2 = NONE;
-    }
+    *p2 = NONE;
     return *tpp;
   }
   if (v < t->v) {
     int before;
-    ret = avl_insert(&t->l_tree, v, &before);
+    ret = avl_insert_intern(&t->l_tree, v, &before);
     if (ret) {
       /* left right or left left */
       avl_rebalance(tpp, LEFT, before);
-      if (p2) {
-        *p2 = LEFT;
-      }
+      *p2 = LEFT;
     }
   } else if (v > t->v) {
     int before;
-    ret = avl_insert(&t->r_tree, v, &before);
+    ret = avl_insert_intern(&t->r_tree, v, &before);
     if (ret) {
       /* right right or right left */
       avl_rebalance(tpp, RIGHT, before);
-      if (p2) {
-        *p2 = RIGHT;
-      }
+      *p2 = RIGHT;
     }
   } else {
     printf("ERROR: collision\n");
@@ -164,7 +113,13 @@ avl_tree *avl_insert(avl_tree **tpp, int v, int *p2)
   return ret;
 }
 
-avl_tree ** get_smalest(avl_tree **t)
+avl_tree *avl_insert(avl_tree **tpp, int v)
+{
+  int unused = 0;
+  return avl_insert_intern(tpp, v, &unused);
+}
+
+static avl_tree ** get_smalest(avl_tree **t)
 {
   if ((*t)->l_tree) {
     return get_smalest(&(*t)->l_tree);
@@ -172,7 +127,7 @@ avl_tree ** get_smalest(avl_tree **t)
   return t;
 }
 
-avl_tree **get_bigest(avl_tree **t)
+static avl_tree **get_bigest(avl_tree **t)
 {
   if ((*t)->r_tree) {
     return get_bigest(&(*t)->r_tree);
@@ -229,6 +184,52 @@ void avl_delete(avl_tree **tpp, int v)
   }
 }
 
+/* ------ debug output ------- */
+void print_space(int nr)
+{
+  for(int i = 0; i < nr; ++i) {
+    putchar(' ');
+  }
+}
+
+void avl_print_line(avl_tree *t, int deep, int pos, int spacing)
+{
+  if (pos == deep) {
+    if (t) {
+      printf("%d", t->v);
+    } else {
+      printf(" ");
+    }
+    print_space(spacing);
+  } else {
+    avl_print_line(t ? t->l_tree : NULL, deep, pos + 1, spacing);
+    avl_print_line(t ? t->r_tree : NULL, deep, pos + 1, spacing);
+  }
+}
+
+int calc_spacing(int depth, int pos)
+{
+  int ret = 1;
+  for( int i = pos; i <= depth; ++i)
+  {
+    ret *= 2;
+  }
+  return ret - 1;
+}
+
+void avl_print(avl_tree *t)
+{
+  int tree_depth = avl_depth(t);
+  for (int i = 1; i <= tree_depth; ++i) {
+    int spacing = calc_spacing(tree_depth, i);
+    print_space(spacing / 2);
+    avl_print_line(t, i, 1, spacing);
+    printf("\n");
+  }
+}
+
+/* ----- tests ------ */
+
 int main(int argc, char *argv[])
 {
   avl_tree *tree = NULL;
@@ -238,7 +239,7 @@ int main(int argc, char *argv[])
     printf("-----------------------------------\n");
     if (r2) {
       printf("ADD %i\n", r);
-      avl_insert(&tree, r, NULL);
+      avl_insert(&tree, r);
     } else {
       printf("DEL %i\n", r);
       avl_delete(&tree, r);
