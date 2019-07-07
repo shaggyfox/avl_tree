@@ -119,6 +119,7 @@ avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
   }
   return t;
 }
+
 avl_tree *avl_insert(avl_tree **tpp, int v, int *p2)
 {
   avl_tree *t = *tpp;
@@ -157,15 +158,86 @@ avl_tree *avl_insert(avl_tree **tpp, int v, int *p2)
   return ret;
 }
 
+avl_tree ** get_smalest(avl_tree **t)
+{
+  if ((*t)->l_tree) {
+    return get_smalest(&(*t)->l_tree);
+  }
+  return t;
+}
+
+avl_tree **get_bigest(avl_tree **t)
+{
+  if ((*t)->r_tree) {
+    return get_bigest(&(*t)->r_tree);
+  }
+  return t;
+}
+
+void avl_delete(avl_tree **tpp, int v)
+{
+  avl_tree *t = *tpp;
+  if (t) {
+    if (v < t->v) {
+      avl_delete(&t->l_tree, v);
+    } else if (v > t->v) {
+      avl_delete(&t->r_tree, v);
+    } else {
+      /* delete this node */
+      if (t->l_tree && t->r_tree) {
+        int len_l = avl_depth(t->l_tree);
+        int len_r = avl_depth(t->r_tree);
+        if (len_l > len_r) {
+          avl_tree **pp = get_bigest(&t->l_tree);
+          avl_tree *new_root = *pp;
+          (*pp) = (*pp)->l_tree;
+          new_root->r_tree = t->r_tree;
+          new_root->l_tree = t->l_tree;
+          free(t);
+          *tpp = new_root;
+        } else {
+          avl_tree **pp = get_smalest(&t->r_tree);
+          avl_tree *new_root = *pp;
+          (*pp) = (*pp)->r_tree;
+          new_root->r_tree = t->r_tree;
+          new_root->l_tree = t->l_tree;
+          free(t);
+          *tpp = new_root;
+        }
+      } else if (t->l_tree){
+        avl_tree *new_root = t->l_tree;
+        free(t);
+        *tpp = new_root;
+      } else if (t->r_tree) {
+        avl_tree *new_root = t->r_tree;
+        free(t);
+        *tpp = new_root;
+      } else {
+        /* tree has no leafs -> delete it */
+        free(t);
+        *tpp = NULL;
+      }
+    }
+  }
+}
+
 int main(int argc, char *argv[])
 {
   avl_tree *tree = NULL;
-  for (int i = 0; i < 100; ++i) {
-    int r = rand()%100;
+  for (int i = 0; i < 10; ++i) {
+    int r = rand()%10;
     printf("-----------------------------------\n");
     printf("ADD %i\n", r);
     avl_insert(&tree, r, NULL);
     avl_print(tree);
   }
+  for (int i = 0; i < 10; ++i) {
+    if (i == 3) {
+    } else { 
+  avl_delete(&tree, i);
+    }
+  }
+  printf("..\n");
+    avl_print(tree);
   return 0;
 }
