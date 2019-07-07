@@ -20,6 +20,11 @@ int avl_depth(avl_tree *t)
   return 0;
 }
 
+int avl_balance(avl_tree *t)
+{
+  return avl_depth(t->r_tree) - avl_depth(t->l_tree);
+}
+
 void print_space(int nr)
 {
   for(int i = 0; i < nr; ++i) {
@@ -87,34 +92,80 @@ avl_tree *avl_rotate_right(avl_tree **epp)
   return old_left;
 }
 
-avl_tree *avl_insert(avl_tree **tpp, int v)
+enum {NONE, LEFT, RIGHT};
+avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
 {
   avl_tree *t = *tpp;
+  int balance = avl_balance(t);
+  if (balance <-1 || balance > 1) {
+    /* we might stop after rebalancing */
+    printf("%d out of balance: %d\n", t->v, balance);
+    printf("%s %s case\n", p1 == LEFT ? "left" :  "right",
+                           p2 == LEFT ? "left" : "right");
+    if (p1 == LEFT && p2 == LEFT) {
+      avl_rotate_right(tpp);
+    } else if (p1 == RIGHT && p2 == RIGHT) {
+      avl_rotate_left(tpp);
+    } else if (p1 == LEFT && p2 == RIGHT) {
+      avl_rotate_left(&t->l_tree);
+      avl_rotate_right(tpp);
+    } else if (p1 == RIGHT && p2 == LEFT) {
+      avl_rotate_right(&t->r_tree);
+      avl_rotate_left(tpp);
+    }
+
+
+
+  }
+  return t;
+}
+avl_tree *avl_insert(avl_tree **tpp, int v, int *p2)
+{
+  avl_tree *t = *tpp;
+  avl_tree *ret = NULL;
   if (!t) {
     *tpp = calloc(1, sizeof(avl_tree));
     (*tpp)->v = v;
+    if (p2) {
+      *p2 = NONE;
+    }
     return *tpp;
   }
   if (v < t->v) {
-    return avl_insert(&t->l_tree, v);
+    int before;
+    ret = avl_insert(&t->l_tree, v, &before);
+    if (ret) {
+      /* left right or left left */
+      avl_rebalance(tpp, LEFT, before);
+      if (p2) {
+        *p2 = LEFT;
+      }
+    }
   } else if (v > t->v) {
-    return avl_insert(&t->r_tree, v);
+    int before;
+    ret = avl_insert(&t->r_tree, v, &before);
+    if (ret) {
+      /* right right or right left */
+      avl_rebalance(tpp, RIGHT, before);
+      if (p2) {
+        *p2 = RIGHT;
+      }
+    }
+  } else {
+    printf("ERROR: collision\n");
   }
-  printf("ERROR: collision\n");
-  return NULL;
+  return ret;
 }
 
 int main(int argc, char *argv[])
 {
   avl_tree *tree = NULL;
-  avl_insert(&tree, 5);
-  avl_insert(&tree, 4);
-  avl_insert(&tree, 3);
-  avl_insert(&tree, 2);
-  avl_insert(&tree, 1);
-  avl_rotate_right(&tree->l_tree);
-  avl_rotate_left(&tree->l_tree);
- // avl_rotate_left(e);
-  avl_print(tree);
+  for (int i = 0; i < 100; ++i) {
+    int r = rand()%100;
+    printf("-----------------------------------\n");
+    printf("ADD %i\n", r);
+    avl_insert(&tree, r, NULL);
+    avl_print(tree);
+  }
   return 0;
 }
