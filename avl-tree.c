@@ -48,12 +48,12 @@ static avl_tree *avl_rotate_right(avl_tree **epp)
 }
 
 enum {NONE, LEFT, RIGHT};
-static avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
+enum {CONTINUE, COLLISION, REBALANCE};
+static int avl_rebalance(avl_tree **tpp, int p1, int p2)
 {
   avl_tree *t = *tpp;
   int balance = avl_balance(t);
   if (balance <-1 || balance > 1) {
-    /* we might stop after rebalancing in insert */
     if (p1 == NONE) {
       if (balance < 0) {
         p1 = LEFT;
@@ -77,46 +77,47 @@ static avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
       avl_rotate_right(&t->r_tree);
       avl_rotate_left(tpp);
     }
+    /* we might stop after rebalancing in insert */
+    return REBALANCE;
   }
-  return t;
+  return CONTINUE;
 }
 
-avl_tree *avl_insert_intern(avl_tree **tpp, int v, int *p2)
+static int avl_insert_intern(avl_tree **tpp, int v, int *p2)
 {
   avl_tree *t = *tpp;
-  avl_tree *ret = NULL;
+  int ret = CONTINUE;
   if (!t) {
     *tpp = calloc(1, sizeof(avl_tree));
     (*tpp)->v = v;
     *p2 = NONE;
-    return *tpp;
-  }
-  if (v < t->v) {
+  } else if (v < t->v) {
     int before;
     ret = avl_insert_intern(&t->l_tree, v, &before);
-    if (ret) {
+    if (ret == CONTINUE) {
       /* left right or left left */
-      avl_rebalance(tpp, LEFT, before);
+      ret = avl_rebalance(tpp, LEFT, before);
       *p2 = LEFT;
     }
   } else if (v > t->v) {
     int before;
     ret = avl_insert_intern(&t->r_tree, v, &before);
-    if (ret) {
+    if (ret == CONTINUE) {
       /* right right or right left */
-      avl_rebalance(tpp, RIGHT, before);
+      ret = avl_rebalance(tpp, RIGHT, before);
       *p2 = RIGHT;
     }
   } else {
     printf("ERROR: collision\n");
+    ret = COLLISION;
   }
   return ret;
 }
 
-avl_tree *avl_insert(avl_tree **tpp, int v)
+int avl_insert(avl_tree **tpp, int v)
 {
   int unused = 0;
-  return avl_insert_intern(tpp, v, &unused);
+  return avl_insert_intern(tpp, v, &unused) == COLLISION;
 }
 
 static avl_tree ** get_smalest(avl_tree **t)
