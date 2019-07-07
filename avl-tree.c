@@ -98,7 +98,16 @@ avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
   avl_tree *t = *tpp;
   int balance = avl_balance(t);
   if (balance <-1 || balance > 1) {
-    /* we might stop after rebalancing */
+    /* we might stop after rebalancing in insert */
+    if (p1 == NONE) {
+      if (balance < 0) {
+        p1 = LEFT;
+        p2 = avl_balance(t->l_tree) < 0 ?  LEFT : RIGHT;
+      } else {
+        p1 = RIGHT;
+        p2 = avl_balance(t->r_tree) < 0 ? LEFT : RIGHT;
+      }
+    }
     printf("%d out of balance: %d\n", t->v, balance);
     printf("%s %s case\n", p1 == LEFT ? "left" :  "right",
                            p2 == LEFT ? "left" : "right");
@@ -113,9 +122,6 @@ avl_tree *avl_rebalance(avl_tree **tpp, int p1, int p2)
       avl_rotate_right(&t->r_tree);
       avl_rotate_left(tpp);
     }
-
-
-
   }
   return t;
 }
@@ -180,8 +186,10 @@ void avl_delete(avl_tree **tpp, int v)
   if (t) {
     if (v < t->v) {
       avl_delete(&t->l_tree, v);
+      avl_rebalance(tpp, NONE, NONE);
     } else if (v > t->v) {
       avl_delete(&t->r_tree, v);
+      avl_rebalance(tpp, NONE, NONE);
     } else {
       /* delete this node */
       if (t->l_tree && t->r_tree) {
@@ -224,20 +232,18 @@ void avl_delete(avl_tree **tpp, int v)
 int main(int argc, char *argv[])
 {
   avl_tree *tree = NULL;
-  for (int i = 0; i < 10; ++i) {
-    int r = rand()%10;
+  for (int i = 0; i < 1000000; ++i) {
+    int r = rand()%100;
+    int r2 = rand()%2;
     printf("-----------------------------------\n");
-    printf("ADD %i\n", r);
-    avl_insert(&tree, r, NULL);
-    avl_print(tree);
-  }
-  for (int i = 0; i < 10; ++i) {
-    if (i == 3) {
-    } else { 
-  avl_delete(&tree, i);
+    if (r2) {
+      printf("ADD %i\n", r);
+      avl_insert(&tree, r, NULL);
+    } else {
+      printf("DEL %i\n", r);
+      avl_delete(&tree, r);
     }
-  }
-  printf("..\n");
     avl_print(tree);
+  }
   return 0;
 }
