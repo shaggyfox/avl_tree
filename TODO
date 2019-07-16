@@ -1,1 +1,3 @@
+* return deleted index/value
+* add free-function for index/value
 * store balance-factor in node (speedup)
