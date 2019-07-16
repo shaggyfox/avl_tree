@@ -1,14 +1,11 @@
-#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
+#include "avl-tree.h"
+#ifdef DEBUG
+#include <stdio.h>
+#endif
 
-typedef struct avl_tree_s avl_tree;
-struct avl_tree_s {
-  avl_tree *l_tree;
-  avl_tree *r_tree;
-  int v;
-};
-
-static int avl_depth(avl_tree *t)
+int avl_depth(avl_tree *t)
 {
   if (t) {
     int a = avl_depth(t->l_tree);
@@ -63,9 +60,11 @@ static int avl_rebalance(avl_tree **tpp, int p1, int p2)
         p2 = avl_balance(t->r_tree) < 0 ? LEFT : RIGHT;
       }
     }
-    printf("%d out of balance: %d\n", t->v, balance);
+#ifdef DEBUG
+    printf("out of balance by %d\n", balance);
     printf("%s %s case\n", p1 == LEFT ? "left" :  "right",
                            p2 == LEFT ? "left" : "right");
+#endif
     if (p1 == LEFT && p2 == LEFT) {
       avl_rotate_right(tpp);
     } else if (p1 == RIGHT && p2 == RIGHT) {
@@ -83,41 +82,78 @@ static int avl_rebalance(avl_tree **tpp, int p1, int p2)
   return CONTINUE;
 }
 
-static int avl_insert_intern(avl_tree **tpp, int v, int *p2)
+static int avl_insert_intern(avl_tree **tpp, avl_index_t *index, void *value, int *p2, int (*cmp_fn)(avl_index_t*, avl_index_t*))
 {
   avl_tree *t = *tpp;
   int ret = CONTINUE;
   if (!t) {
     *tpp = calloc(1, sizeof(avl_tree));
-    (*tpp)->v = v;
+    (*tpp)->index = *index;
+    (*tpp)->value = value;
     *p2 = NONE;
-  } else if (v < t->v) {
-    int before;
-    ret = avl_insert_intern(&t->l_tree, v, &before);
-    if (ret == CONTINUE) {
-      /* left right or left left */
-      ret = avl_rebalance(tpp, LEFT, before);
-      *p2 = LEFT;
-    }
-  } else if (v > t->v) {
-    int before;
-    ret = avl_insert_intern(&t->r_tree, v, &before);
-    if (ret == CONTINUE) {
-      /* right right or right left */
-      ret = avl_rebalance(tpp, RIGHT, before);
-      *p2 = RIGHT;
-    }
   } else {
-    printf("ERROR: collision\n");
-    ret = COLLISION;
+    int cmp_result = cmp_fn(index, &t->index);
+    if (cmp_result < 0) {
+      //if (index < t->index) {
+      int before;
+      ret = avl_insert_intern(&t->l_tree, index, value, &before, cmp_fn);
+      if (ret == CONTINUE) {
+        /* left right or left left */
+        ret = avl_rebalance(tpp, LEFT, before);
+        *p2 = LEFT;
+      }
+    //} else if (v > t->v) {
+    } else if (cmp_result > 0) {
+      int before;
+      ret = avl_insert_intern(&t->r_tree, index, value, &before, cmp_fn);
+      if (ret == CONTINUE) {
+        /* right right or right left */
+        ret = avl_rebalance(tpp, RIGHT, before);
+        *p2 = RIGHT;
+      }
+    } else {
+#ifdef DEBUG
+      printf("ERROR: collision\n");
+#endif
+      ret = COLLISION;
+    }
   }
   return ret;
 }
 
-int avl_insert(avl_tree **tpp, int v)
+int my_cmp_fn(avl_index_t *a, avl_index_t *b) {
+  if (a->index_type < b->index_type) {
+    return -1;
+  } else if (a->index_type > b->index_type) {
+    return 1;
+  }
+  int ret = 0;
+  switch(a->index_type) {
+    case INDEX_INTEGER:
+      if (a->u.integer < b->u.integer) {
+        ret = -1;
+      } else if (a->u.integer > b->u.integer) {
+        ret = 1;
+      }
+      break;
+    case INDEX_STRING:
+      ret = strcmp(a->u.string, b->u.string);
+      break;
+    case INDEX_POINTER:
+      if (a->u.pointer <  b->u.pointer) {
+        ret = -1;
+      } else if (a->u.pointer > b->u.pointer) {
+        ret = 1;
+      }
+      break;
+  }
+  return ret;
+}
+
+int avl_insert(avl_tree **tpp, avl_index_t *index, void *value)
 {
   int unused = 0;
-  return avl_insert_intern(tpp, v, &unused) == COLLISION;
+  return avl_insert_intern(tpp, index, value, &unused, &my_cmp_fn) == COLLISION;
 }
 
 static avl_tree ** get_smalest(avl_tree **t)
@@ -136,15 +172,18 @@ static avl_tree **get_bigest(avl_tree **t)
   return t;
 }
 
-void avl_delete(avl_tree **tpp, int v)
+static void intern_avl_delete(avl_tree **tpp, void *index, int (*cmp_fn)(avl_index_t*, avl_index_t*))
 {
   avl_tree *t = *tpp;
   if (t) {
-    if (v < t->v) {
-      avl_delete(&t->l_tree, v);
+    int cmp_result = cmp_fn(index, &t->index);
+    //if (v < t->v) {
+    if (cmp_result < 0) {
+      intern_avl_delete(&t->l_tree, index, cmp_fn);
       avl_rebalance(tpp, NONE, NONE);
-    } else if (v > t->v) {
-      avl_delete(&t->r_tree, v);
+    //} else if (v > t->v) {
+    } else if (cmp_result > 0) {
+      intern_avl_delete(&t->r_tree, index, cmp_fn);
       avl_rebalance(tpp, NONE, NONE);
     } else {
       /* delete this node */
@@ -185,67 +224,33 @@ void avl_delete(avl_tree **tpp, int v)
   }
 }
 
-/* ------ debug output ------- */
-void print_space(int nr)
+void avl_delete(avl_tree **tpp, avl_index_t *index)
 {
-  for(int i = 0; i < nr; ++i) {
-    putchar(' ');
-  }
+  intern_avl_delete(tpp, index, my_cmp_fn);
 }
 
-void avl_print_line(avl_tree *t, int deep, int pos, int spacing)
+void avl_insert_integer(avl_tree **tpp, int index, void *value)
 {
-  if (pos == deep) {
-    if (t) {
-      printf("%d", t->v);
-    } else {
-      printf(" ");
-    }
-    print_space(spacing);
-  } else {
-    avl_print_line(t ? t->l_tree : NULL, deep, pos + 1, spacing);
-    avl_print_line(t ? t->r_tree : NULL, deep, pos + 1, spacing);
-  }
+  avl_index_t tmp_idx;
+  tmp_idx.index_type = INDEX_INTEGER;
+  tmp_idx.u.integer = index;
+  avl_insert(tpp, &tmp_idx, value);
 }
 
-int calc_spacing(int depth, int pos)
+void avl_insert_string(avl_tree **tpp, char *index, void *value)
 {
-  int ret = 1;
-  for( int i = pos; i <= depth; ++i)
-  {
-    ret *= 2;
-  }
-  return ret - 1;
+  avl_index_t tmp_idx;
+  tmp_idx.index_type = INDEX_STRING;
+  tmp_idx.u.string = index;
+  avl_insert(tpp, &tmp_idx, value);
 }
 
-void avl_print(avl_tree *t)
+
+void avl_delete_integer(avl_tree **tpp, int index)
 {
-  int tree_depth = avl_depth(t);
-  for (int i = 1; i <= tree_depth; ++i) {
-    int spacing = calc_spacing(tree_depth, i);
-    print_space(spacing / 2);
-    avl_print_line(t, i, 1, spacing);
-    printf("\n");
-  }
+  avl_index_t tmp_idx;
+  tmp_idx.index_type = INDEX_INTEGER;
+  tmp_idx.u.integer = index;
+  avl_delete(tpp, &tmp_idx);
 }
 
-/* ----- tests ------ */
-
-int main(int argc, char *argv[])
-{
-  avl_tree *tree = NULL;
-  for (int i = 0; i < 1000000; ++i) {
-    int r = rand()%100;
-    int r2 = rand()%2;
-    printf("-----------------------------------\n");
-    if (r2) {
-      printf("ADD %i\n", r);
-      avl_insert(&tree, r);
-    } else {
-      printf("DEL %i\n", r);
-      avl_delete(&tree, r);
-    }
-    avl_print(tree);
-  }
-  return 0;
-}
