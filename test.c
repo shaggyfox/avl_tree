@@ -1,6 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "avl-tree.h"
+
+int pr(avl_tree **tpp, void *dat) {
+  if (dat) {
+    printf("%s\n", dat);
+  }
+  return 0;
+}
+
 int main(int argc, char *argv[])
 {
   avl_tree *tree = NULL;
@@ -176,10 +184,7 @@ NULL
       avl_insert_string(&tree, words[i], words[i]);
   }
   avl_print(tree);
-  printf("%s\n", avl_find_string(tree, "soft"));
-  printf("%s\n", avl_delete_string(&tree, "soft"));
-  printf("%p\n", avl_find_string(tree, "soft"));
-  printf("%p\n", avl_delete_string(&tree, "soft"));
+  avl_foreach(tree, &pr);
   return 0;
 }
 

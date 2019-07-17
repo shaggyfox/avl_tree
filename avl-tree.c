@@ -240,6 +240,24 @@ static void* intern_avl_delete(avl_tree **tpp, avl_index_t *index)
   return ret;
 }
 
+int avl_foreach(avl_tree *t, int (*fn)(avl_tree **, void *value))
+{
+  if (t->l_tree) {
+    if (avl_foreach(t->l_tree, fn)) {
+      return 1;
+    }
+  }
+  if (fn(&t, t->value)) {
+    return 1;
+  }
+  if (t->r_tree) {
+    if (avl_foreach(t->r_tree, fn)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void *avl_delete(avl_tree **tpp, avl_index_t *index)
 {
   return intern_avl_delete(tpp, index);

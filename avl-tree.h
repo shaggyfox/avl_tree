@@ -26,3 +26,6 @@ void avl_insert_integer(avl_tree **tpp, int index, void *value);
 void avl_insert_string(avl_tree **tpp, char *index, void *value);
 void *avl_find_integer(avl_tree *t, int index);
 void *avl_find_string(avl_tree *t, char *index);
+
+
+int avl_foreach(avl_tree *t, int (*)(avl_tree **, void*));
