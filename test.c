@@ -173,9 +173,13 @@ NULL
   };
 
   for(int i = 0; words[i];++i) {
-      avl_insert_string(&tree, words[i], NULL);
+      avl_insert_string(&tree, words[i], words[i]);
   }
   avl_print(tree);
+  printf("%s\n", avl_find_string(tree, "soft"));
+  printf("%s\n", avl_delete_string(&tree, "soft"));
+  printf("%p\n", avl_find_string(tree, "soft"));
+  printf("%p\n", avl_delete_string(&tree, "soft"));
   return 0;
 }
 

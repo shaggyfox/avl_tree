@@ -44,6 +44,36 @@ static avl_tree *avl_rotate_right(avl_tree **epp)
   return old_left;
 }
 
+static int index_cmp(avl_index_t *a, avl_index_t *b) {
+  if (a->index_type < b->index_type) {
+    return -1;
+  } else if (a->index_type > b->index_type) {
+    return 1;
+  }
+  int ret = 0;
+  switch(a->index_type) {
+    case INDEX_INTEGER:
+      if (a->u.integer < b->u.integer) {
+        ret = -1;
+      } else if (a->u.integer > b->u.integer) {
+        ret = 1;
+      }
+      break;
+    case INDEX_STRING:
+      ret = strcmp(a->u.string, b->u.string);
+      break;
+    case INDEX_POINTER:
+      if (a->u.pointer <  b->u.pointer) {
+        ret = -1;
+      } else if (a->u.pointer > b->u.pointer) {
+        ret = 1;
+      }
+      break;
+  }
+  return ret;
+}
+
+
 enum {NONE, LEFT, RIGHT};
 enum {CONTINUE, COLLISION, REBALANCE};
 static int avl_rebalance(avl_tree **tpp, int p1, int p2)
@@ -82,7 +112,7 @@ static int avl_rebalance(avl_tree **tpp, int p1, int p2)
   return CONTINUE;
 }
 
-static int avl_insert_intern(avl_tree **tpp, avl_index_t *index, void *value, int *p2, int (*cmp_fn)(avl_index_t*, avl_index_t*))
+static int avl_insert_intern(avl_tree **tpp, avl_index_t *index, void *value, int *p2)
 {
   avl_tree *t = *tpp;
   int ret = CONTINUE;
@@ -92,20 +122,18 @@ static int avl_insert_intern(avl_tree **tpp, avl_index_t *index, void *value, in
     (*tpp)->value = value;
     *p2 = NONE;
   } else {
-    int cmp_result = cmp_fn(index, &t->index);
+    int cmp_result = index_cmp(index, &t->index);
     if (cmp_result < 0) {
-      //if (index < t->index) {
       int before;
-      ret = avl_insert_intern(&t->l_tree, index, value, &before, cmp_fn);
+      /* left left or left right */
+      ret = avl_insert_intern(&t->l_tree, index, value, &before);
       if (ret == CONTINUE) {
-        /* left right or left left */
         ret = avl_rebalance(tpp, LEFT, before);
         *p2 = LEFT;
       }
-    //} else if (v > t->v) {
     } else if (cmp_result > 0) {
       int before;
-      ret = avl_insert_intern(&t->r_tree, index, value, &before, cmp_fn);
+      ret = avl_insert_intern(&t->r_tree, index, value, &before);
       if (ret == CONTINUE) {
         /* right right or right left */
         ret = avl_rebalance(tpp, RIGHT, before);
@@ -121,39 +149,10 @@ static int avl_insert_intern(avl_tree **tpp, avl_index_t *index, void *value, in
   return ret;
 }
 
-int my_cmp_fn(avl_index_t *a, avl_index_t *b) {
-  if (a->index_type < b->index_type) {
-    return -1;
-  } else if (a->index_type > b->index_type) {
-    return 1;
-  }
-  int ret = 0;
-  switch(a->index_type) {
-    case INDEX_INTEGER:
-      if (a->u.integer < b->u.integer) {
-        ret = -1;
-      } else if (a->u.integer > b->u.integer) {
-        ret = 1;
-      }
-      break;
-    case INDEX_STRING:
-      ret = strcmp(a->u.string, b->u.string);
-      break;
-    case INDEX_POINTER:
-      if (a->u.pointer <  b->u.pointer) {
-        ret = -1;
-      } else if (a->u.pointer > b->u.pointer) {
-        ret = 1;
-      }
-      break;
-  }
-  return ret;
-}
-
 int avl_insert(avl_tree **tpp, avl_index_t *index, void *value)
 {
   int unused = 0;
-  return avl_insert_intern(tpp, index, value, &unused, &my_cmp_fn) == COLLISION;
+  return avl_insert_intern(tpp, index, value, &unused) == COLLISION;
 }
 
 static avl_tree ** get_smalest(avl_tree **t)
@@ -172,21 +171,35 @@ static avl_tree **get_bigest(avl_tree **t)
   return t;
 }
 
-static void intern_avl_delete(avl_tree **tpp, void *index, int (*cmp_fn)(avl_index_t*, avl_index_t*))
+static void *intern_avl_find(avl_tree *t, avl_index_t *index)
 {
+  if (t) {
+    int cmp_result = index_cmp(index, &t->index);
+    if (cmp_result < 0) {
+      return intern_avl_find(t->l_tree, index);
+    } else if (cmp_result > 0) {
+      return intern_avl_find(t->r_tree, index);
+    }
+    return t->value;
+  }
+  return NULL;
+}
+
+static void* intern_avl_delete(avl_tree **tpp, avl_index_t *index)
+{
+  void *ret = NULL;
   avl_tree *t = *tpp;
   if (t) {
-    int cmp_result = cmp_fn(index, &t->index);
-    //if (v < t->v) {
+    int cmp_result = index_cmp(index, &t->index);
     if (cmp_result < 0) {
-      intern_avl_delete(&t->l_tree, index, cmp_fn);
+      ret = intern_avl_delete(&t->l_tree, index);
       avl_rebalance(tpp, NONE, NONE);
-    //} else if (v > t->v) {
     } else if (cmp_result > 0) {
-      intern_avl_delete(&t->r_tree, index, cmp_fn);
+      ret = intern_avl_delete(&t->r_tree, index);
       avl_rebalance(tpp, NONE, NONE);
     } else {
-      /* delete this node */
+      /* left and right tree ...
+       * get new root node from the * deepest sub-tree */
       if (t->l_tree && t->r_tree) {
         int len_l = avl_depth(t->l_tree);
         int len_r = avl_depth(t->r_tree);
@@ -196,7 +209,6 @@ static void intern_avl_delete(avl_tree **tpp, void *index, int (*cmp_fn)(avl_ind
           (*pp) = (*pp)->l_tree;
           new_root->r_tree = t->r_tree;
           new_root->l_tree = t->l_tree;
-          free(t);
           *tpp = new_root;
         } else {
           avl_tree **pp = get_smalest(&t->r_tree);
@@ -204,29 +216,33 @@ static void intern_avl_delete(avl_tree **tpp, void *index, int (*cmp_fn)(avl_ind
           (*pp) = (*pp)->r_tree;
           new_root->r_tree = t->r_tree;
           new_root->l_tree = t->l_tree;
-          free(t);
           *tpp = new_root;
         }
       } else if (t->l_tree){
         avl_tree *new_root = t->l_tree;
-        free(t);
         *tpp = new_root;
       } else if (t->r_tree) {
         avl_tree *new_root = t->r_tree;
-        free(t);
         *tpp = new_root;
       } else {
-        /* tree has no leafs -> delete it */
-        free(t);
+        /* tree has no leaves, so there is noting to do */
         *tpp = NULL;
       }
+      if (t->index.index_type == INDEX_STRING) {
+        free(t->index.u.string);
+      }
+      /* return value of deleted node */
+      ret = t->value;
+      /* free deleted node */
+      free(t);
     }
   }
+  return ret;
 }
 
-void avl_delete(avl_tree **tpp, avl_index_t *index)
+void *avl_delete(avl_tree **tpp, avl_index_t *index)
 {
-  intern_avl_delete(tpp, index, my_cmp_fn);
+  return intern_avl_delete(tpp, index);
 }
 
 void avl_insert_integer(avl_tree **tpp, int index, void *value)
@@ -241,16 +257,38 @@ void avl_insert_string(avl_tree **tpp, char *index, void *value)
 {
   avl_index_t tmp_idx;
   tmp_idx.index_type = INDEX_STRING;
-  tmp_idx.u.string = index;
+  tmp_idx.u.string = strdup(index);
   avl_insert(tpp, &tmp_idx, value);
 }
 
-
-void avl_delete_integer(avl_tree **tpp, int index)
+void *avl_delete_integer(avl_tree **tpp, int index)
 {
   avl_index_t tmp_idx;
   tmp_idx.index_type = INDEX_INTEGER;
   tmp_idx.u.integer = index;
-  avl_delete(tpp, &tmp_idx);
+  return avl_delete(tpp, &tmp_idx);
 }
 
+void *avl_delete_string(avl_tree **tpp, char *index)
+{
+  avl_index_t tmp_idx;
+  tmp_idx.index_type = INDEX_STRING;
+  tmp_idx.u.string = index;
+  return avl_delete(tpp, &tmp_idx);
+}
+
+void *avl_find_integer(avl_tree *t, int index)
+{
+  avl_index_t tmp_idx;
+  tmp_idx.index_type =INDEX_INTEGER;
+  tmp_idx.u.integer = index;
+  return intern_avl_find(t, &tmp_idx);
+}
+
+void *avl_find_string(avl_tree *t, char *index)
+{
+  avl_index_t tmp_idx;
+  tmp_idx.index_type = INDEX_STRING;
+  tmp_idx.u.string = index;
+  return intern_avl_find(t, &tmp_idx);
+}
