@@ -263,6 +263,20 @@ void *avl_delete(avl_tree **tpp, avl_index_t *index)
   return intern_avl_delete(tpp, index);
 }
 
+void avl_free(avl_tree *t, void (*free_fn)(void*))
+{
+  if (t->l_tree) {
+    avl_free(t->l_tree, free_fn);
+  }
+  if (t->r_tree) {
+    avl_free(t->r_tree, free_fn);
+  }
+  if (free_fn) {
+    free_fn(t->value);
+  }
+  free(t);
+}
+
 void avl_insert_integer(avl_tree **tpp, int index, void *value)
 {
   avl_index_t tmp_idx;
